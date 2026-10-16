@@ -1,0 +1,207 @@
+<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Lily di Kebun Binatang</title>
+<style>
+:root{--bg:#9fdcff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#2b2540}}
+:root[data-theme="dark"]{--bg:#2b2540}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);font-family:"Comic Sans MS","Trebuchet MS",sans-serif}
+canvas{position:fixed;inset:0;display:block;touch-action:none}
+.box{position:fixed;left:50%;transform:translateX(-50%);background:#fff;color:#333;border-radius:24px;padding:8px 16px;text-align:center;box-shadow:0 5px 0 #0003}
+#q{top:calc(env(safe-area-inset-top,0px) + 8px);width:min(560px,92vw);display:none}
+#hud{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);background:#fff;color:#333;border-radius:18px;padding:4px 14px;font-size:22px;font-weight:bold;box-shadow:0 3px 0 #0002}
+#ov{top:50%;transform:translate(-50%,-50%);width:min(430px,86vw);padding:20px}
+h1{margin:0 0 6px;font-size:28px;color:#e0558f}
+p{margin:6px 0 12px;font-size:17px}
+.go{font-family:inherit;font-size:24px;font-weight:bold;border:0;background:#4cc36b;color:#fff;border-radius:22px;padding:12px 26px;cursor:pointer;box-shadow:0 5px 0 #2f8f4d;margin:4px}
+.ct{font-size:14px;color:#888}
+.pic{font-size:28px;line-height:1.1;word-break:break-all}
+.s{font-size:26px;font-weight:bold;color:#e0558f}
+.pr{font-size:20px}
+.sp{font-size:22px;border:0;background:#ffe27a;border-radius:50%;width:40px;height:40px;margin-left:8px;cursor:pointer;vertical-align:middle}
+.hint{font-size:13px;color:#777}
+.big{font-size:34px;font-weight:bold;color:#2f9d55}
+#menu{position:fixed;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 56px);font-family:inherit;font-size:18px;font-weight:bold;border:0;background:#ffe27a;color:#333;border-radius:18px;padding:6px 14px;box-shadow:0 3px 0 #0002;cursor:pointer}
+#dp{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:grid;grid-template:repeat(3,54px)/repeat(3,54px);gap:4px;touch-action:none;user-select:none;-webkit-user-select:none}
+#dp button{font-size:26px;border:0;border-radius:16px;background:#fff;color:#e0558f;box-shadow:0 4px 0 #0003;cursor:pointer;touch-action:none}
+#dp button:active{transform:scale(.92);background:#ffe27a}
+.bad{animation:sh .35s}
+@keyframes sh{25%{transform:translateX(calc(-50% - 8px))}75%{transform:translateX(calc(-50% + 8px))}}
+</style></head><body>
+<div id="hud">⭐ 0</div>
+<div id="q" class="box"></div>
+<div id="ov" class="box"></div>
+<button id="menu" onclick="toMenu()">🏠 Menu</button>
+<div id="dp"><button data-x="0" data-z="-1" style="grid-area:1/2">▲</button><button data-x="-1" data-z="0" style="grid-area:2/1">◀</button><button data-x="1" data-z="0" style="grid-area:2/3">▶</button><button data-x="0" data-z="1" style="grid-area:3/2">▼</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const sh=a=>a.map(v=>[Math.random(),v]).sort((x,y)=>x[0]-y[0]).map(v=>v[1]);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fdcff);scene.fog=new THREE.Fog(0x9fdcff,35,90);
+const cam=new THREE.PerspectiveCamera(60,1,.1,200);
+const ren=new THREE.WebGLRenderer({antialias:true});document.body.prepend(ren.domElement);
+function rs(){ren.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.fov=cam.aspect<1?75:60;cam.updateProjectionMatrix()}
+addEventListener('resize',rs);rs();
+scene.add(new THREE.HemisphereLight(0xffffff,0x88aa66,1));
+const dl=new THREE.DirectionalLight(0xffffff,.6);dl.position.set(5,10,5);scene.add(dl);
+const mesh=(g,c,x=0,y=0,z=0)=>{const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:c}));m.position.set(x,y,z);return m};
+const S=r=>new THREE.SphereGeometry(r,16,12),CY=(a,b,h)=>new THREE.CylinderGeometry(a,b,h,8),BX=(x,y,z)=>new THREE.BoxGeometry(x,y,z);
+function spr(txt,sx,sy,fnt,col,bg){const c=document.createElement('canvas');c.width=512;c.height=Math.round(512*sy/sx);const x=c.getContext('2d');
+ if(bg){x.fillStyle=bg;x.fillRect(0,0,c.width,c.height)}x.fillStyle=col||'#333';x.font=fnt;x.textAlign='center';x.textBaseline='middle';x.fillText(txt,256,c.height/2+4);
+ const s=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));s.scale.set(sx,sy,1);return s}
+const QZ=new THREE.Group(),AD=new THREE.Group();scene.add(QZ,AD);
+const zoo=[];
+const gr=mesh(new THREE.PlaneGeometry(700,700),0x7ed957,0,0,-150);gr.rotation.x=-Math.PI/2;scene.add(gr);
+// quiz arena
+const pz=mesh(new THREE.CircleGeometry(11,40),0xf0d9a8,0,.02,0);pz.rotation.x=-Math.PI/2;QZ.add(pz);
+const wd=0xb5835a;
+for(let x=-22;x<=22;x+=2)QZ.add(mesh(BX(.2,1.2,.2),wd,x,.6,-16));
+[.5,1].forEach(y=>QZ.add(mesh(BX(44,.12,.12),wd,0,y,-16)));
+[-22,22].forEach(s=>{for(let z=-16;z<=18;z+=2)QZ.add(mesh(BX(.2,1.2,.2),wd,s,.6,z));[.5,1].forEach(y=>QZ.add(mesh(BX(.12,.12,34),wd,s,y,1)))});
+for(let i=0;i<40;i++){const a=i*.55,r=26+(i*7%9),x=Math.cos(a)*r,z=Math.sin(a)*r*.8-4;
+ QZ.add(mesh(CY(.3,.35,2),0x8b5a2b,x,1,z),mesh(new THREE.ConeGeometry(1.6,3.4,8),i%3?0x2e9d4a:0x58c25a,x,3.4,z))}
+function animal(t,x,z,P){const g=new THREE.Group();
+ if(t==='e'){const c=0x9aa3ad,b=mesh(S(1.3),c,0,1.7,0);b.scale.set(1,.9,1.3);g.add(b,mesh(S(.8),c,0,2.1,1.6),mesh(CY(.2,.12,1.5),c,0,1.3,2.4),mesh(S(.6),c,-1,2.2,1.4),mesh(S(.6),c,1,2.2,1.4),mesh(S(.08),0x222222,-.3,2.4,2.3),mesh(S(.08),0x222222,.3,2.4,2.3));
+  [[-.6,-.8],[.6,-.8],[-.6,.8],[.6,.8]].forEach(p=>g.add(mesh(CY(.3,.3,1.2),c,p[0],.6,p[1])))}
+ if(t==='g'){const c=0xf2c14e,b=mesh(S(.9),c,0,2.3,0);b.scale.set(.8,.8,1.3);g.add(b,mesh(CY(.22,.3,2.4),c,0,3.6,.9),mesh(S(.4),c,0,4.9,1.1),mesh(S(.07),0x222222,-.2,5,1.45),mesh(S(.07),0x222222,.2,5,1.45),mesh(S(.2),0x8b5a2b,.5,2.5,.3),mesh(S(.2),0x8b5a2b,-.4,2.2,-.4));
+  [[-.4,-.8],[.4,-.8],[-.4,.8],[.4,.8]].forEach(p=>g.add(mesh(CY(.12,.12,1.9),c,p[0],.95,p[1])))}
+ if(t==='l'){const c=0xe0a040,b=mesh(S(.8),c,0,1.1,0);b.scale.set(.9,.8,1.4);g.add(b,mesh(S(.8),0xa0602a,0,1.5,1.1),mesh(S(.5),c,0,1.5,1.6),mesh(S(.07),0x222222,-.2,1.6,2.05),mesh(S(.07),0x222222,.2,1.6,2.05));
+  [[-.4,-.7],[.4,-.7],[-.4,.7],[.4,.7]].forEach(p=>g.add(mesh(CY(.17,.17,.8),c,p[0],.4,p[1])))}
+ g.position.set(x,0,z);P.add(g);zoo.push(g)}
+animal('e',-12,-11,QZ);animal('g',12,-11,QZ);animal('l',-14,2,QZ);
+const sign=spr('🦁 ZOO 🐘',12,3,'bold 100px sans-serif','#e0558f','#fff');sign.position.set(0,6,-16);QZ.add(sign);
+// girl
+const girl=new THREE.Group();
+girl.add(mesh(new THREE.ConeGeometry(.6,1.1,16),0xff6fa5,0,.95,0),mesh(S(.42),0xffd7b5,0,1.8,0));
+const hair=mesh(S(.45),0x5a3418,0,1.95,.1);hair.scale.set(1,.8,1);
+girl.add(hair,mesh(S(.17),0x5a3418,-.5,1.7,.1),mesh(S(.17),0x5a3418,.5,1.7,.1),mesh(S(.06),0x222222,-.15,1.82,-.37),mesh(S(.06),0x222222,.15,1.82,-.37),mesh(S(.07),0xff8fa8,-.25,1.7,-.34),mesh(S(.07),0xff8fa8,.25,1.7,-.34));
+const mkLeg=x=>{const g=new THREE.Group();g.position.set(x,.45,0);g.add(mesh(CY(.09,.09,.45),0xffd7b5,0,-.2,0),mesh(S(.13),0xd33a6b,0,-.45,-.05));girl.add(g);return g};
+const legL=mkLeg(-.2),legR=mkLeg(.2);girl.scale.setScalar(1.3);scene.add(girl);
+const mark=new THREE.Mesh(new THREE.RingGeometry(.3,.45,24),new THREE.MeshBasicMaterial({color:0xff4f9a,side:2}));mark.rotation.x=-Math.PI/2;mark.position.y=.05;scene.add(mark);
+// answer pads
+const COL=[0xff8fb8,0xffd54f,0x6ec6ff];
+const pads=[0,1,2].map(i=>{const d=mesh(new THREE.CylinderGeometry(2.2,2.2,.15,32),COL[i],0,.08,-4);scene.add(d);
+ const cv=document.createElement('canvas');cv.width=cv.height=256;
+ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));sp.scale.set(3.6,3.6,1);scene.add(sp);return{d,sp,cv,x:0,z:0}});
+function putPads(cx,cz,gap){pads.forEach((p,i)=>{p.x=cx+(i-1)*gap;p.z=cz;p.d.position.set(p.x,.08,p.z);p.sp.position.set(p.x,2.8,p.z);p.d.visible=p.sp.visible=true})}
+function hidePads(){pads.forEach(p=>p.d.visible=p.sp.visible=false)}
+function lab(p,o){const c=p.cv.getContext('2d');c.clearRect(0,0,256,256);c.fillStyle='rgba(255,255,255,.93)';c.beginPath();c.roundRect?c.roundRect(8,8,240,240,40):c.rect(8,8,240,240);c.fill();c.textAlign='center';c.fillStyle='#333';
+ if(o.l){c.font='120px sans-serif';c.fillText(o.e,128,150);c.font='bold 40px sans-serif';c.fillText(o.l,128,222)}else{c.font='bold 170px sans-serif';c.fillStyle='#e0558f';c.fillText(o.e,128,190)}
+ p.sp.material.map.needsUpdate=true}
+// data
+const A=[['🐘','Elephant','I have a long trunk.'],['🦒','Giraffe','I have a very long neck.'],['🦁','Lion','I have a big mane.'],['🐒','Monkey','I have a long tail and I climb trees.'],['🦓','Zebra','I have black and white stripes.'],['🐰','Rabbit','I have two long ears.'],['🐢','Turtle','I have a hard shell.'],['🐦','Bird','I have two wings.'],['🐊','Crocodile','I have a big mouth and sharp teeth.'],['🐷','Pig','I have a curly tail and a round nose.']];
+const B=[['👀','Eyes','I have two eyes. I can see.'],['👂','Ears','I have two ears. I can hear.'],['👃','Nose','I have one nose. I can smell.'],['👄','Mouth','I have one mouth. I can talk and sing.'],['✋','Hands','I have two hands and ten fingers.'],['🦶','Feet','I have two feet and ten toes.'],['🦵','Legs','I have two legs. They have knees.'],['🦷','Teeth','I have many white teeth. I brush them every day.'],['💪','Arms','I have two arms. They have elbows.'],['🧠','Brain','I have a brain. I can think.']];
+const OBJ=[['🍎','apple'],['🍌','banana'],['⭐','star'],['🎈','balloon'],['🌸','flower'],['⚽','ball'],['🚗','car'],['🍪','cookie'],['🦆','duck'],['🐱','cat']];
+const NW=['one','two','three','four','five','six','seven','eight','nine','ten'];
+function pool(L,cat,p){return sh(L).map(a=>({c:cat,p,s:a[2],pic:'',w:a[1],e:a[0],o:sh([a,...sh(L.filter(x=>x!==a)).slice(0,2)]).map(x=>({e:x[0],l:x[1],ok:x===a}))}))}
+function build(){const q=pool(A,'🐾 Animals','Who am I?'),ob=sh(OBJ);
+ sh([1,2,3,4,5,6,7,8,9,10]).forEach((n,i)=>{const [oe,on]=ob[i],near=[];for(let k=n-2;k<=n+2;k++)if(k>=1&&k<=10&&k!==n)near.push(k);
+  q.push({c:'🔢 Numbers',p:'How many?',s:`I have ${NW[n-1]} ${on}${n>1?'s':''}.`,pic:oe.repeat(n),w:NW[n-1][0].toUpperCase()+NW[n-1].slice(1),e:String(n),o:sh([n,...sh(near).slice(0,2)]).map(x=>({e:String(x),l:'',ok:x===n}))})});
+ return q.concat(pool(B,'🧍 Body','What is it?'))}
+// adventure world: 30 stations along a path through 3 zones
+const STZ=i=>-14-i*8;
+{const AD=new THREE.Group();const pa=mesh(new THREE.PlaneGeometry(12,400),0xf0d9a8,0,.02,-190);pa.rotation.x=-Math.PI/2;AD.add(pa);
+ for(let i=0;i<66;i++){const z=10-i*6;[-1,1].forEach(s=>{const x=s*(13+(i*5%4));AD.add(mesh(CY(.3,.35,2),0x8b5a2b,x,1,z),mesh(new THREE.ConeGeometry(1.6,3.4,8),(i+s)%3?0x2e9d4a:0x58c25a,x,3.4,z))})}
+ for(let i=0;i<30;i++){const sz=STZ(i),sd=i%2?1:-1,x=sd*9.5;
+  if(i<10)animal('egl'[i%3],x,sz-1,AD);
+  else if(i<20){AD.add(spr(String(i-9),3,3,'bold 300px sans-serif','#e0558f','rgba(255,255,255,.92)'));const b=AD.children[AD.children.length-1];b.position.set(x,2.4,sz);
+   AD.add(mesh(CY(.04,.04,2.4),0x888888,x-sd*2.2,1.2,sz),mesh(S(.7),COL[i%3],x-sd*2.2,2.9,sz))}
+  else{const b=spr(B[i-20][0],3.5,3.5,'300px sans-serif',null,'rgba(255,255,255,.9)');b.position.set(x,2.6,sz);AD.add(b,mesh(BX(1.4,1,1.4),COL[i%3],x,.5,sz))}}
+ [['🐾 ANIMALS',0],['🔢 NUMBERS',10],['🧍 BODY',20]].forEach(z=>{const b=spr(z[0],12,3,'bold 100px sans-serif','#e0558f','#fff');b.position.set(0,6,STZ(z[1])+7);AD.add(b)})}
+const HD=[0,0,0,90,90,90,90,0,0,0,-90,-90,-90,-90,-90,0,0,0,0,0,90,90,90,90,90,0,0,-90,-90];
+const SP=[];{let x=0,z=-8;for(let i=0;i<30;i++){const a=HD[Math.min(i,28)]*Math.PI/180;SP.push({x,z,a,dx:Math.sin(a),dz:-Math.cos(a)});x+=Math.sin(a)*9;z-=Math.cos(a)*9}}
+const HILL={x:0,z:-62,rt:8,rb:16,H:3},POND={x:18,z:-107,r:12};
+function hgt(x,z){const d=Math.hypot(x-HILL.x,z-HILL.z);return d<HILL.rb?HILL.H*Math.min(1,(HILL.rb-d)/(HILL.rb-HILL.rt)):0}
+function inW(x,z){return Math.hypot(x-POND.x,z-POND.z)<POND.r}
+function htop(x,z,r){return Math.max(hgt(x,z),hgt(x+r,z),hgt(x-r,z),hgt(x,z+r),hgt(x,z-r))}
+function spd(){if(mode!=='adv')return 5;const x=girl.position.x,z=girl.position.z;return inW(x,z)?3.2:hgt(x,z)>.3?3.8:5}
+function putAdv(i){const p=SP[i],cx=p.x+p.dx*5,cz=p.z+p.dz*5,rx=Math.cos(p.a),rz=Math.sin(p.a);
+ pads.forEach((q,k)=>{q.x=cx+(k-1)*5.2*rx;q.z=cz+(k-1)*5.2*rz;const y=htop(q.x,q.z,2);q.y=y;q.d.position.set(q.x,y+.08,q.z);q.sp.position.set(q.x,y+2.8,q.z);q.d.visible=q.sp.visible=true})}
+function dpos(i,off){const p=SP[i],rx=Math.cos(p.a),rz=Math.sin(p.a);let best=null,bd=-1;[-1,1].forEach(s=>{const x=p.x+rx*off*s,z=p.z+rz*off*s;let m=1e9;SP.forEach((q,j)=>{if(j!==i)m=Math.min(m,Math.hypot(x-q.x,z-q.z))});if(m>bd){bd=m;best={x,z}}});return bd>7?best:null}
+let cox=0,coz=0;girl.rotation.order='YXZ';
+{AD.add(mesh(new THREE.CylinderGeometry(HILL.rt,HILL.rb,HILL.H,32),0x9fd45f,HILL.x,HILL.H/2,HILL.z));
+ const wm=mesh(new THREE.CircleGeometry(POND.r,40),0x4aa3ff,POND.x,.04,POND.z);wm.rotation.x=-Math.PI/2;wm.material.transparent=true;wm.material.opacity=.75;AD.add(wm);
+ for(let k=0;k<7;k++){const an=k*.9,r=3+(k%3)*3;AD.add(mesh(CY(.9,.9,.04),0x2e9d4a,POND.x+Math.cos(an)*r,.07,POND.z+Math.sin(an)*r))}
+ [[5,4],[-6,-3]].forEach(o=>AD.add(mesh(S(.5),0xffd600,POND.x+o[0],.3,POND.z+o[1]),mesh(S(.3),0xffd600,POND.x+o[0],.8,POND.z+o[1]+.3),mesh(CY(.08,.08,.3),0xff8a00,POND.x+o[0],.8,POND.z+o[1]+.6)));
+ const hb=spr('⛰️ NAIK!',9,2.25,'bold 90px sans-serif','#2e7d32','#fff');hb.position.set(HILL.x,HILL.H+6,HILL.z);AD.add(hb);
+ const pb=spr('🏊 BERENANG!',10,2.5,'bold 80px sans-serif','#1e88e5','#fff');pb.position.set(POND.x,6.5,POND.z);AD.add(pb);
+ const pg=new THREE.CylinderGeometry(3,3,.05,16),pm=new THREE.MeshLambertMaterial({color:0xf0d9a8}),PT=[{x:0,z:4},...SP];
+ for(let i=0;i<PT.length-1;i++){const a=PT[i],b=PT[i+1],n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/3);for(let k=0;k<=n;k++){const x=a.x+(b.x-a.x)*k/n,z=a.z+(b.z-a.z)*k/n;if(inW(x,z))continue;const m=new THREE.Mesh(pg,pm);m.position.set(x,htop(x,z,3)+.03,z);AD.add(m)}}
+ let sd=7,nt=0;const rn=()=>(sd=sd*16807%2147483647)/2147483647,g1=CY(.3,.35,2),g2=new THREE.ConeGeometry(1.6,3.4,8),m1=new THREE.MeshLambertMaterial({color:0x8b5a2b}),m2=new THREE.MeshLambertMaterial({color:0x2e9d4a});
+ for(let k=0;k<600&&nt<90;k++){const x=-50+rn()*130,z=20-rn()*170;if(SP.some(p=>Math.hypot(x-p.x,z-p.z)<10)||Math.hypot(x,z-4)<10||Math.hypot(x-POND.x,z-POND.z)<POND.r+3||Math.hypot(x-HILL.x,z-HILL.z)<HILL.rb+2)continue;nt++;const a=new THREE.Mesh(g1,m1),b=new THREE.Mesh(g2,m2);a.position.set(x,1,z);b.position.set(x,3.4,z);AD.add(a,b)}
+ for(let i=0;i<30;i++){const q=dpos(i,i<10?9.5:8.5);if(!q)continue;const y=hgt(q.x,q.z);
+  if(i<10)animal('egl'[i%3],q.x,q.z,AD);
+  else if(i<20){const b=spr(String(i-9),3,3,'bold 300px sans-serif','#e0558f','rgba(255,255,255,.92)');b.position.set(q.x,y+2.4,q.z);AD.add(b,mesh(S(.7),COL[i%3],q.x,y+5,q.z))}
+  else{const b=spr(B[i-20][0],3.5,3.5,'300px sans-serif',null,'rgba(255,255,255,.9)');b.position.set(q.x,y+2.6,q.z);AD.add(b);if(!inW(q.x,q.z))AD.add(mesh(BX(1.4,1,1.4),COL[i%3],q.x,y+.5,q.z))}}
+ [['🐾 ANIMALS',0],['🔢 NUMBERS',10],['🧍 BODY',20]].forEach(z=>{const b=spr(z[0],12,3,'bold 100px sans-serif','#e0558f','#fff'),p=SP[z[1]];b.position.set(p.x,hgt(p.x,p.z)+7,p.z);AD.add(b)})}
+const qm=new THREE.Group();{const d=mesh(new THREE.CircleGeometry(2.2,24),0xffe27a,0,.05,0);d.rotation.x=-Math.PI/2;const q=spr('❓',3,3,'300px sans-serif');q.position.y=2.8;qm.add(d,q);AD.add(qm)}
+// game
+let Q=[],qi=0,stars=0,state='intro',tries=0,cur=null,cool=-1,t=0,last=performance.now(),mode='quiz';
+const tgt=new THREE.Vector3(0,0,6);
+let kx=0,kz=0,tm,lvS=0,dw=0,dwp=-1,pin=-1;const GRN=new THREE.Color(0x4cc36b);
+function tapPad(e){if(state!=='play')return;rc.setFromCamera({x:e.clientX/innerWidth*2-1,y:-e.clientY/innerHeight*2+1},cam);const h=rc.intersectObjects(pads.flatMap(p=>[p.sp,p.d]));if(h.length){const p=pads.find(p=>p.sp===h[0].object||p.d===h[0].object);if(p)tgt.set(p.x,0,p.z)}}
+const LV=['🐾 Animals','🔢 Numbers','🧍 Body'];
+function lvl(){state='end';hidePads();qm.visible=false;$('q').style.display='none';const n=qi/10,got=stars-lvS;lvS=stars;
+ $('ov').innerHTML=`<h1>🎉 Level ${n} selesai!</h1><div style="font-size:48px">🏅</div><p>${LV[n-1]}<br>${'⭐'.repeat(got)||'—'}<br>${got} dari 10</p><button class="go" onclick="nextLv()">▶ Lanjut</button><button class="go" style="background:#ffd54f;color:#333;box-shadow:0 5px 0 #c9a227" onclick="toMenu()">🏠 Menu</button>`;$('ov').style.display='block';say('Level complete! Well done!')}
+function nextLv(){$('ov').style.display='none';mode==='adv'?goWalk():loadQ()}
+function dirT(){const c=THREE.MathUtils.clamp,gx=girl.position.x,gz=girl.position.z;if(mode==='adv')tgt.set(gx+kx*3,0,gz+kz*3);else tgt.set(c(gx+kx*3,-8,8),0,c(gz+kz*3,-7,12))}
+function hold(x,z){kx=x;kz=z;if(!x&&!z)tgt.set(girl.position.x,0,girl.position.z)}
+document.querySelectorAll('#dp button').forEach(b=>{const x=+b.dataset.x,z=+b.dataset.z;b.addEventListener('pointerdown',e=>{e.preventDefault();hold(x,z)});['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>hold(0,0)))});
+const KM={ArrowUp:[0,-1],w:[0,-1],ArrowDown:[0,1],s:[0,1],ArrowLeft:[-1,0],a:[-1,0],ArrowRight:[1,0],d:[1,0]};
+addEventListener('keydown',e=>{const m=KM[e.key];if(m){e.preventDefault();hold(m[0],m[1])}});
+addEventListener('keyup',e=>{if(KM[e.key])hold(0,0)});
+function toMenu(){clearTimeout(tm);try{speechSynthesis.cancel()}catch(e){}state='intro';hold(0,0);$('q').style.display='none';hidePads();qm.visible=false;QZ.visible=true;AD.visible=false;girl.position.set(0,0,6);girl.rotation.y=0;tgt.set(0,0,6);$('ov').innerHTML=MENU;$('ov').style.display='block'}
+const MENU=`<h1>🦁 Lily di Kebun Binatang</h1><p>Gerakkan kursor (atau geser jari) supaya Lily berjalan. Ada 30 pertanyaan: Animals, Numbers, dan Body!</p><button class="go" onclick="start('adv')">🧭 Mode Petualangan</button><button class="go" style="background:#ff8fb8;box-shadow:0 5px 0 #d6608a" onclick="start('quiz')">🎯 Mode Kuis</button>`;
+$('ov').innerHTML=MENU;QZ.visible=true;AD.visible=false;qm.visible=false;
+function say(w){try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(w);u.lang='en-US';u.rate=.75;u.pitch=1.2;speechSynthesis.speak(u)}catch(e){}}
+function sayQ(){say(cur.s+' '+cur.p)}
+function hud(){$('hud').textContent='⭐ '+stars}
+function start(m){mode=m;$('ov').style.display='none';QZ.visible=m==='quiz';AD.visible=m==='adv';Q=build();qi=0;stars=0;lvS=0;dw=0;dwp=-1;pads.forEach(p=>p.y=0);hud();
+ if(m==='adv'){girl.position.set(0,0,4);tgt.set(0,0,4);girl.rotation.y=0;hidePads();goWalk();say('Let us go on an adventure!')}else loadQ()}
+function goWalk(){qm.position.set(SP[qi].x,hgt(SP[qi].x,SP[qi].z),SP[qi].z);qm.visible=true;state='walk';
+ $('q').innerHTML=`<div class="ct">${Q[qi].c} · ${qi+1}/30</div><div class="s">🧭 Ayo jalan ke ❓ <span id="ar"></span></div><div class="hint" id="tg">Gerakkan kursor atau geser jari</div>`;$('q').style.display='block'}
+function loadQ(){cur=Q[qi];qm.visible=false;
+ if(mode==='adv')putAdv(qi);else{putPads(0,-4,5.5);girl.position.set(0,0,6);tgt.set(0,0,6);girl.rotation.y=0}
+ pads.forEach((p,i)=>{lab(p,cur.o[i]);p.d.material.color.set(COL[i])});tries=0;cool=-1;dw=0;dwp=-1;
+ $('q').innerHTML=`<div class="ct">${cur.c} · ${qi+1}/30</div>${cur.pic?`<div class="pic">${cur.pic}</div>`:''}<div class="s">${cur.s}</div><div class="pr">${cur.p}<button class="sp" onclick="sayQ()">🔊</button></div><div class="hint">Ketuk gambar jawaban, lalu Lily berjalan ke sana!</div>`;
+ $('q').style.display='block';state='play';sayQ()}
+function answer(i){const o=cur.o[i];
+ if(!o.ok){tries++;pads[i].fl=t+.6;const q=$('q');q.classList.remove('bad');void q.offsetWidth;q.classList.add('bad');say(tries>=2?'Look at the blinking circle!':'Try again!');return}
+ state='ok';if(!tries)stars++;hud();
+ $('q').innerHTML=`<div class="big">🎉 Great!</div><div class="s">${cur.e} ${cur.w}</div>`;say('Great! '+cur.w);
+ tm=setTimeout(()=>{qi++;if(qi>=Q.length)finish();else if(qi%10===0)lvl();else if(mode==='adv'){hidePads();goWalk()}else loadQ()},1900)}
+function finish(){state='end';$('q').style.display='none';
+ $('ov').innerHTML=`<h1>🏆 Hebat sekali!</h1><p>Lily mendapat ${stars} ⭐ dari 30 pertanyaan</p><button class="go" onclick="again()">🔄 Main lagi</button>`;$('ov').style.display='block';say('Well done! You are a star!')}
+function again(){$('ov').innerHTML=MENU}
+// cursor control
+const rc=new THREE.Raycaster(),pl=new THREE.Plane(new THREE.Vector3(0,1,0),0),v3=new THREE.Vector3();
+function setT(e){if(state!=='play'&&state!=='walk')return;pl.constant=mode==='adv'?-hgt(girl.position.x,girl.position.z):0;rc.setFromCamera({x:e.clientX/innerWidth*2-1,y:-e.clientY/innerHeight*2+1},cam);
+ if(rc.ray.intersectPlane(pl,v3)){const c=THREE.MathUtils.clamp,gz=girl.position.z;
+  if(mode==='adv')tgt.set(c(v3.x,girl.position.x-25,girl.position.x+25),0,c(v3.z,gz-25,gz+25));else tgt.set(c(v3.x,-8,8),0,c(v3.z,-7,12))}}
+ren.domElement.addEventListener('pointermove',setT);ren.domElement.addEventListener('pointerdown',e=>{setT(e);tapPad(e)});
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;t+=dt;let mv=false;
+ if((state==='play'||state==='walk')&&(kx||kz))dirT();
+ if(state==='play'||state==='walk'){const dx=tgt.x-girl.position.x,dz=tgt.z-girl.position.z,d=Math.hypot(dx,dz);
+  if(d>.15){const s=Math.min(d,spd()*dt);girl.position.x+=dx/d*s;girl.position.z+=dz/d*s;girl.rotation.y=Math.atan2(-dx,-dz);mv=true;const w=Math.sin(t*12)*.7;legL.rotation.x=w;legR.rotation.x=-w;girl.position.y=Math.abs(Math.sin(t*12))*.08}
+  mark.visible=mv;mark.position.set(tgt.x,.05,tgt.z);
+  if(state==='walk'){if(Math.hypot(girl.position.x-SP[qi].x,girl.position.z-SP[qi].z)<3)loadQ()}
+  else{let ins=-1;pads.forEach((p,i)=>{if(Math.hypot(girl.position.x-p.x,girl.position.z-p.z)<2)ins=i});pin=ins;
+   if(ins<0){cool=-1;dw=0;dwp=-1}else if(ins!==cool){if(ins!==dwp){dwp=ins;dw=0}dw+=dt;if(dw>=1){cool=ins;dw=0;answer(ins)}}}}
+ else mark.visible=false;
+ if(state==='ok'){girl.position.y=Math.abs(Math.sin(t*8))*.25;girl.rotation.y=Math.PI}
+ else if(!mv){legL.rotation.x=legR.rotation.x=0;girl.position.y=0}
+ pads.forEach((p,i)=>{const pr=state==='play'&&i===pin&&pin!==cool?Math.min(dw,1):0,hn=state==='play'&&tries>=2&&cur&&cur.o[i].ok,pu=hn?.08*Math.sin(t*8):0;
+  p.d.material.color.set(t<(p.fl||0)?0xe53935:(hn&&Math.sin(t*8)>0?0x4cc36b:COL[i])).lerp(GRN,pr);p.d.scale.set(1+pr*.15+pu,1,1+pr*.15+pu);
+  p.sp.scale.setScalar(3.6+pr*.5);p.sp.position.y=(p.y||0)+2.8+Math.sin(t*2+i)*.12});
+ qm.children[1].position.y=2.8+Math.sin(t*3)*.3;
+ zoo.forEach((a,i)=>a.rotation.y=Math.sin(t*.8+i)*.25);
+ const ad=mode==='adv',gh=ad?hgt(girl.position.x,girl.position.z):0,sw=ad&&inW(girl.position.x,girl.position.z);
+ girl.rotation.x+=((sw?-1.15:0)-girl.rotation.x)*Math.min(1,dt*8);
+ if(sw){girl.position.y=.1+Math.sin(t*4)*.06;const kk=Math.sin(t*14)*.6;legL.rotation.x=kk;legR.rotation.x=-kk}else girl.position.y+=gh;
+ let fx=0,fz=0;
+ if(ad&&state==='walk'){const P=SP[qi],ex=P.x-girl.position.x,ez=P.z-girl.position.z,ar=$('ar');fx=THREE.MathUtils.clamp(ex,-8,8)*.5;fz=THREE.MathUtils.clamp(ez,-8,8)*.5;
+  if(ar){ar.textContent=Math.abs(ex)>Math.abs(ez)?(ex>0?'➡️ kanan':'⬅️ kiri'):(ez<0?'⬆️ lurus':'⬇️ mundur');const g=$('tg'),tag=inW(P.x,P.z)?'🏊 Ada kolam, ayo berenang!':hgt(P.x,P.z)>1?'⛰️ Ayo naik bukit!':'Gerakkan kursor atau geser jari';if(g&&g.textContent!==tag)g.textContent=tag}}
+ cox+=(fx-cox)*Math.min(1,dt*3);coz+=(fz-coz)*Math.min(1,dt*3);
+ const cx=ad?girl.position.x+cox:girl.position.x*.4,cz=ad?girl.position.z+coz:girl.position.z,gy=ad?girl.position.y*.6:0;
+ cam.position.set(cx,11+gy,cz+11);cam.lookAt(cx,gy,cz-6);
+ ren.render(scene,cam);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+</script></body></html>
